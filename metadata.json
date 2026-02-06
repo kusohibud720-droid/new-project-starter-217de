@@ -1,0 +1,8 @@
+
+{
+  "name": "ZenTask - Minimalist To-Do",
+  "description": "A clean, minimalist, and animated to-do list application designed for focus and clarity.",
+  "requestFramePermissions": [
+    "microphone"
+  ]
+}
