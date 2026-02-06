@@ -45,7 +45,8 @@ const Index = () => {
           transition={{ delay: 0.5, duration: 0.3 }}
           whileHover={{ scale: 1.05 }}
           whileTap={{ scale: 0.98 }}
-          className="bg-primary text-primary-foreground px-8 py-3 rounded-xl font-semibold shadow-lg shadow-primary/25 hover:shadow-xl hover:shadow-primary/30 transition-shadow"
+          onClick={() => alert("Добро пожаловать в ZenTask! 🎉")}
+          className="bg-primary text-primary-foreground px-8 py-3 rounded-xl font-semibold shadow-lg shadow-primary/25 hover:shadow-xl hover:shadow-primary/30 transition-shadow cursor-pointer"
         >
           Начать работу
         </motion.button>
