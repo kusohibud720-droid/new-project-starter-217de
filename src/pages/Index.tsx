@@ -1,118 +1,140 @@
 import { useState } from "react";
-import { motion, AnimatePresence } from "framer-motion";
-import { CheckCircle, Sparkles, Zap, Target, Plus, Trash2 } from "lucide-react";
+import { motion } from "framer-motion";
+import { Sparkles, CheckCircle, Zap, Target, Bot, ArrowLeft, CalendarDays } from "lucide-react";
+import { Calendar } from "@/components/Calendar";
+import { TaskList } from "@/components/TaskList";
+import { TaskAssistant } from "@/components/TaskAssistant";
 
 interface Task {
   id: number;
   text: string;
   completed: boolean;
+  dueDate?: string;
 }
 
 const Index = () => {
   const [started, setStarted] = useState(false);
   const [tasks, setTasks] = useState<Task[]>([
     { id: 1, text: "Попробовать ZenTask", completed: false },
-    { id: 2, text: "Добавить новую задачу", completed: false },
+    { id: 2, text: "Добавить задачу в календарь", completed: false },
   ]);
-  const [newTask, setNewTask] = useState("");
+  const [selectedDate, setSelectedDate] = useState<string | null>(null);
+  const [showAssistant, setShowAssistant] = useState(false);
 
-  const addTask = () => {
-    if (newTask.trim()) {
-      setTasks([...tasks, { id: Date.now(), text: newTask, completed: false }]);
-      setNewTask("");
+  const addTask = (text: string, dueDate?: string) => {
+    if (text.trim()) {
+      setTasks([...tasks, { id: Date.now(), text, completed: false, dueDate }]);
     }
   };
 
   const toggleTask = (id: number) => {
-    setTasks(tasks.map(t => t.id === id ? { ...t, completed: !t.completed } : t));
+    setTasks(tasks.map((t) => (t.id === id ? { ...t, completed: !t.completed } : t)));
   };
 
   const deleteTask = (id: number) => {
-    setTasks(tasks.filter(t => t.id !== id));
+    setTasks(tasks.filter((t) => t.id !== id));
+  };
+
+  const handleAddTaskToDate = (date: string) => {
+    setSelectedDate(date);
   };
 
   if (started) {
     return (
-      <div className="min-h-screen bg-gradient-to-br from-background via-secondary/30 to-accent/20 p-6">
+      <div className="min-h-screen bg-gradient-to-br from-background via-secondary/30 to-accent/20 p-4 md:p-6">
         <motion.div
           initial={{ opacity: 0, y: 20 }}
           animate={{ opacity: 1, y: 0 }}
-          className="max-w-xl mx-auto"
+          className="max-w-6xl mx-auto"
         >
-          <h1 className="text-3xl font-bold text-foreground mb-8 text-center">
-            Zen<span className="text-primary">Task</span>
-          </h1>
+          {/* Header */}
+          <div className="flex items-center justify-between mb-6">
+            <h1 className="text-2xl md:text-3xl font-bold text-foreground">
+              Zen<span className="text-primary">Task</span>
+            </h1>
+            <div className="flex items-center gap-2">
+              <button
+                onClick={() => setShowAssistant(!showAssistant)}
+                className={`flex items-center gap-2 px-4 py-2 rounded-xl transition-all cursor-pointer ${
+                  showAssistant
+                    ? "bg-primary text-primary-foreground"
+                    : "bg-primary/10 text-primary hover:bg-primary/20"
+                }`}
+              >
+                <Bot className="w-4 h-4" />
+                <span className="hidden md:inline text-sm font-medium">Ассистент</span>
+              </button>
+              <button
+                onClick={() => {
+                  setStarted(false);
+                  setShowAssistant(false);
+                }}
+                className="p-2 rounded-xl hover:bg-muted transition-colors cursor-pointer"
+              >
+                <ArrowLeft className="w-5 h-5 text-muted-foreground" />
+              </button>
+            </div>
+          </div>
 
-          {/* Add Task */}
-          <div className="flex gap-3 mb-6">
-            <input
-              type="text"
-              value={newTask}
-              onChange={(e) => setNewTask(e.target.value)}
-              onKeyDown={(e) => e.key === "Enter" && addTask()}
-              placeholder="Новая задача..."
-              className="flex-1 px-4 py-3 rounded-xl border border-border bg-card text-foreground placeholder:text-muted-foreground focus:outline-none focus:ring-2 focus:ring-primary/50"
-            />
-            <button
-              onClick={addTask}
-              className="px-4 py-3 bg-primary text-primary-foreground rounded-xl hover:opacity-90 transition-opacity cursor-pointer"
+          {/* Main Content */}
+          <div className="grid grid-cols-1 lg:grid-cols-3 gap-4 md:gap-6">
+            {/* Calendar - Takes 2 columns on large screens */}
+            <div className="lg:col-span-2">
+              <Calendar
+                tasks={tasks}
+                onAddTaskToDate={handleAddTaskToDate}
+                onSelectDate={setSelectedDate}
+                selectedDate={selectedDate}
+              />
+            </div>
+
+            {/* Task List */}
+            <div className="lg:col-span-1">
+              <TaskList
+                tasks={tasks}
+                selectedDate={selectedDate}
+                onAddTask={addTask}
+                onToggleTask={toggleTask}
+                onDeleteTask={deleteTask}
+              />
+              
+              {/* Quick Stats */}
+              <motion.div
+                initial={{ opacity: 0, y: 10 }}
+                animate={{ opacity: 1, y: 0 }}
+                transition={{ delay: 0.2 }}
+                className="mt-4 grid grid-cols-2 gap-3"
+              >
+                <div className="bg-card/60 backdrop-blur-sm border border-border/50 rounded-xl p-3 text-center">
+                  <p className="text-2xl font-bold text-primary">{tasks.filter(t => t.completed).length}</p>
+                  <p className="text-xs text-muted-foreground">Выполнено</p>
+                </div>
+                <div className="bg-card/60 backdrop-blur-sm border border-border/50 rounded-xl p-3 text-center">
+                  <p className="text-2xl font-bold text-foreground">{tasks.filter(t => !t.completed).length}</p>
+                  <p className="text-xs text-muted-foreground">Осталось</p>
+                </div>
+              </motion.div>
+            </div>
+          </div>
+
+          {/* Clear Date Selection */}
+          {selectedDate && (
+            <motion.button
+              initial={{ opacity: 0, y: 10 }}
+              animate={{ opacity: 1, y: 0 }}
+              onClick={() => setSelectedDate(null)}
+              className="mt-4 text-sm text-muted-foreground hover:text-foreground transition-colors cursor-pointer flex items-center gap-1 mx-auto"
             >
-              <Plus className="w-5 h-5" />
-            </button>
-          </div>
-
-          {/* Tasks List */}
-          <div className="space-y-3">
-            <AnimatePresence>
-              {tasks.map((task) => (
-                <motion.div
-                  key={task.id}
-                  initial={{ opacity: 0, x: -20 }}
-                  animate={{ opacity: 1, x: 0 }}
-                  exit={{ opacity: 0, x: 20 }}
-                  className="flex items-center gap-3 p-4 bg-card/80 backdrop-blur-sm border border-border/50 rounded-xl group"
-                >
-                  <button
-                    onClick={() => toggleTask(task.id)}
-                    className={`w-6 h-6 rounded-full border-2 flex items-center justify-center transition-colors cursor-pointer ${
-                      task.completed
-                        ? "bg-primary border-primary"
-                        : "border-muted-foreground hover:border-primary"
-                    }`}
-                  >
-                    {task.completed && <CheckCircle className="w-4 h-4 text-primary-foreground" />}
-                  </button>
-                  <span
-                    className={`flex-1 ${
-                      task.completed ? "line-through text-muted-foreground" : "text-foreground"
-                    }`}
-                  >
-                    {task.text}
-                  </span>
-                  <button
-                    onClick={() => deleteTask(task.id)}
-                    className="opacity-0 group-hover:opacity-100 p-2 text-destructive hover:bg-destructive/10 rounded-lg transition-all cursor-pointer"
-                  >
-                    <Trash2 className="w-4 h-4" />
-                  </button>
-                </motion.div>
-              ))}
-            </AnimatePresence>
-          </div>
-
-          {tasks.length === 0 && (
-            <p className="text-center text-muted-foreground mt-8">
-              Нет задач. Добавьте первую! ✨
-            </p>
+              <CalendarDays className="w-4 h-4" />
+              Показать все задачи
+            </motion.button>
           )}
-
-          <button
-            onClick={() => setStarted(false)}
-            className="mt-8 text-sm text-muted-foreground hover:text-foreground transition-colors cursor-pointer mx-auto block"
-          >
-            ← Назад
-          </button>
         </motion.div>
+
+        {/* AI Assistant */}
+        {showAssistant && (
+          <TaskAssistant tasks={tasks} onClose={() => setShowAssistant(false)} />
+        )}
       </div>
     );
   }
@@ -133,7 +155,7 @@ const Index = () => {
           className="inline-flex items-center gap-2 bg-primary/10 text-primary px-4 py-2 rounded-full mb-6"
         >
           <Sparkles className="w-4 h-4" />
-          <span className="text-sm font-medium">Проект успешно запущен</span>
+          <span className="text-sm font-medium">С ИИ-ассистентом</span>
         </motion.div>
 
         <motion.h1
@@ -151,7 +173,7 @@ const Index = () => {
           transition={{ delay: 0.4, duration: 0.5 }}
           className="text-lg text-muted-foreground mb-8"
         >
-          Минималистичный менеджер задач для продуктивной работы
+          Умный менеджер задач с календарём и ботом-помощником
         </motion.p>
 
         <motion.button
@@ -175,9 +197,9 @@ const Index = () => {
         className="grid grid-cols-1 md:grid-cols-3 gap-6 mt-16 max-w-4xl w-full"
       >
         {[
-          { icon: CheckCircle, title: "Простота", desc: "Интуитивный интерфейс без лишних деталей" },
-          { icon: Zap, title: "Скорость", desc: "Мгновенная работа без задержек" },
-          { icon: Target, title: "Фокус", desc: "Концентрация на главных задачах" },
+          { icon: Bot, title: "ИИ-ассистент", desc: "Бот помогает ставить задачи и напоминает о сроках" },
+          { icon: CalendarDays, title: "Календарь", desc: "Планируй задачи прямо на календаре" },
+          { icon: Target, title: "Фокус", desc: "Концентрация на главных задачах дня" },
         ].map((feature, i) => (
           <motion.div
             key={feature.title}
@@ -195,16 +217,6 @@ const Index = () => {
           </motion.div>
         ))}
       </motion.div>
-
-      {/* Footer */}
-      <motion.p
-        initial={{ opacity: 0 }}
-        animate={{ opacity: 1 }}
-        transition={{ delay: 1.2, duration: 0.5 }}
-        className="text-xs text-muted-foreground/60 mt-16"
-      >
-        Готов к разработке ✓
-      </motion.p>
     </div>
   );
 };
