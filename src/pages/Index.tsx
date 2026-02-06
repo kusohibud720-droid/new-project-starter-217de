@@ -1,7 +1,122 @@
-import { motion } from "framer-motion";
-import { CheckCircle, Sparkles, Zap, Target } from "lucide-react";
+import { useState } from "react";
+import { motion, AnimatePresence } from "framer-motion";
+import { CheckCircle, Sparkles, Zap, Target, Plus, Trash2 } from "lucide-react";
+
+interface Task {
+  id: number;
+  text: string;
+  completed: boolean;
+}
 
 const Index = () => {
+  const [started, setStarted] = useState(false);
+  const [tasks, setTasks] = useState<Task[]>([
+    { id: 1, text: "Попробовать ZenTask", completed: false },
+    { id: 2, text: "Добавить новую задачу", completed: false },
+  ]);
+  const [newTask, setNewTask] = useState("");
+
+  const addTask = () => {
+    if (newTask.trim()) {
+      setTasks([...tasks, { id: Date.now(), text: newTask, completed: false }]);
+      setNewTask("");
+    }
+  };
+
+  const toggleTask = (id: number) => {
+    setTasks(tasks.map(t => t.id === id ? { ...t, completed: !t.completed } : t));
+  };
+
+  const deleteTask = (id: number) => {
+    setTasks(tasks.filter(t => t.id !== id));
+  };
+
+  if (started) {
+    return (
+      <div className="min-h-screen bg-gradient-to-br from-background via-secondary/30 to-accent/20 p-6">
+        <motion.div
+          initial={{ opacity: 0, y: 20 }}
+          animate={{ opacity: 1, y: 0 }}
+          className="max-w-xl mx-auto"
+        >
+          <h1 className="text-3xl font-bold text-foreground mb-8 text-center">
+            Zen<span className="text-primary">Task</span>
+          </h1>
+
+          {/* Add Task */}
+          <div className="flex gap-3 mb-6">
+            <input
+              type="text"
+              value={newTask}
+              onChange={(e) => setNewTask(e.target.value)}
+              onKeyDown={(e) => e.key === "Enter" && addTask()}
+              placeholder="Новая задача..."
+              className="flex-1 px-4 py-3 rounded-xl border border-border bg-card text-foreground placeholder:text-muted-foreground focus:outline-none focus:ring-2 focus:ring-primary/50"
+            />
+            <button
+              onClick={addTask}
+              className="px-4 py-3 bg-primary text-primary-foreground rounded-xl hover:opacity-90 transition-opacity cursor-pointer"
+            >
+              <Plus className="w-5 h-5" />
+            </button>
+          </div>
+
+          {/* Tasks List */}
+          <div className="space-y-3">
+            <AnimatePresence>
+              {tasks.map((task) => (
+                <motion.div
+                  key={task.id}
+                  initial={{ opacity: 0, x: -20 }}
+                  animate={{ opacity: 1, x: 0 }}
+                  exit={{ opacity: 0, x: 20 }}
+                  className="flex items-center gap-3 p-4 bg-card/80 backdrop-blur-sm border border-border/50 rounded-xl group"
+                >
+                  <button
+                    onClick={() => toggleTask(task.id)}
+                    className={`w-6 h-6 rounded-full border-2 flex items-center justify-center transition-colors cursor-pointer ${
+                      task.completed
+                        ? "bg-primary border-primary"
+                        : "border-muted-foreground hover:border-primary"
+                    }`}
+                  >
+                    {task.completed && <CheckCircle className="w-4 h-4 text-primary-foreground" />}
+                  </button>
+                  <span
+                    className={`flex-1 ${
+                      task.completed ? "line-through text-muted-foreground" : "text-foreground"
+                    }`}
+                  >
+                    {task.text}
+                  </span>
+                  <button
+                    onClick={() => deleteTask(task.id)}
+                    className="opacity-0 group-hover:opacity-100 p-2 text-destructive hover:bg-destructive/10 rounded-lg transition-all cursor-pointer"
+                  >
+                    <Trash2 className="w-4 h-4" />
+                  </button>
+                </motion.div>
+              ))}
+            </AnimatePresence>
+          </div>
+
+          {tasks.length === 0 && (
+            <p className="text-center text-muted-foreground mt-8">
+              Нет задач. Добавьте первую! ✨
+            </p>
+          )}
+
+          <button
+            onClick={() => setStarted(false)}
+            className="mt-8 text-sm text-muted-foreground hover:text-foreground transition-colors cursor-pointer mx-auto block"
+          >
+            ← Назад
+          </button>
+        </motion.div>
+      </div>
+    );
+  }
+
   return (
     <div className="min-h-screen bg-gradient-to-br from-background via-secondary/30 to-accent/20 flex flex-col items-center justify-center p-6">
       {/* Hero Section */}
@@ -45,7 +160,7 @@ const Index = () => {
           transition={{ delay: 0.5, duration: 0.3 }}
           whileHover={{ scale: 1.05 }}
           whileTap={{ scale: 0.98 }}
-          onClick={() => alert("Добро пожаловать в ZenTask! 🎉")}
+          onClick={() => setStarted(true)}
           className="bg-primary text-primary-foreground px-8 py-3 rounded-xl font-semibold shadow-lg shadow-primary/25 hover:shadow-xl hover:shadow-primary/30 transition-shadow cursor-pointer"
         >
           Начать работу
