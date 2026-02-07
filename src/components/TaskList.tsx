@@ -1,6 +1,7 @@
 import { useState } from "react";
 import { motion, AnimatePresence } from "framer-motion";
 import { Plus, Trash2, CheckCircle, CalendarDays } from "lucide-react";
+import { VoiceInput } from "./VoiceInput";
 
 interface Task {
   id: number;
@@ -64,6 +65,11 @@ export const TaskList = ({
           onKeyDown={(e) => e.key === "Enter" && handleAddTask()}
           placeholder={selectedDate ? "Добавить задачу на эту дату..." : "Новая задача..."}
           className="flex-1 px-3 py-2 rounded-xl border border-border bg-background text-foreground placeholder:text-muted-foreground text-sm focus:outline-none focus:ring-2 focus:ring-primary/50"
+        />
+        <VoiceInput 
+          onResult={(text) => {
+            setNewTask(text);
+          }}
         />
         <button
           onClick={handleAddTask}
