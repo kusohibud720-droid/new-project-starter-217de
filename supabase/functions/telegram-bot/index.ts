@@ -21,12 +21,55 @@ interface TelegramUpdate {
   };
 }
 
+// Constants for input validation
+const MAX_TASK_LENGTH = 500;
+const MAX_MESSAGE_LENGTH = 2000;
+
+// Escape HTML special characters to prevent injection
+function escapeHtml(text: string): string {
+  return text
+    .replace(/&/g, "&amp;")
+    .replace(/</g, "&lt;")
+    .replace(/>/g, "&gt;")
+    .replace(/"/g, "&quot;")
+    .replace(/'/g, "&#039;");
+}
+
+// Validate and sanitize task text
+function sanitizeTaskText(text: string): string | null {
+  if (!text || typeof text !== "string") return null;
+  const trimmed = text.trim();
+  if (trimmed.length === 0 || trimmed.length > MAX_TASK_LENGTH) return null;
+  return trimmed;
+}
+
+// Validate numeric input for commands
+function parseTaskNumber(input: string): number | null {
+  const trimmed = input.trim();
+  if (!/^\d+$/.test(trimmed)) return null;
+  const num = parseInt(trimmed, 10);
+  if (isNaN(num) || num <= 0 || num > 10000) return null;
+  return num;
+}
+
 serve(async (req: Request) => {
   if (req.method === "OPTIONS") {
     return new Response(null, { headers: corsHeaders });
   }
 
   try {
+    // Validate Telegram webhook signature
+    const TELEGRAM_WEBHOOK_SECRET = Deno.env.get("TELEGRAM_WEBHOOK_SECRET");
+    if (TELEGRAM_WEBHOOK_SECRET) {
+      const signature = req.headers.get("X-Telegram-Bot-Api-Secret-Token");
+      if (signature !== TELEGRAM_WEBHOOK_SECRET) {
+        console.error("Invalid webhook signature");
+        return new Response("Unauthorized", { status: 401 });
+      }
+    } else {
+      console.warn("TELEGRAM_WEBHOOK_SECRET not configured - webhook validation disabled");
+    }
+
     const TELEGRAM_BOT_TOKEN = Deno.env.get("TELEGRAM_BOT_TOKEN");
     const LOVABLE_API_KEY = Deno.env.get("LOVABLE_API_KEY");
     const SUPABASE_URL = Deno.env.get("SUPABASE_URL");
@@ -48,6 +91,15 @@ serve(async (req: Request) => {
     }
 
     const { from, chat, text } = update.message;
+    
+    // Validate input length
+    if (text.length > MAX_MESSAGE_LENGTH) {
+      console.warn("Message too long, ignoring");
+      return new Response(JSON.stringify({ ok: true }), {
+        headers: { ...corsHeaders, "Content-Type": "application/json" },
+      });
+    }
+
     const telegramId = from.id;
     const chatId = chat.id;
     const username = from.username || from.first_name || "User";
@@ -81,7 +133,7 @@ serve(async (req: Request) => {
       .order("created_at", { ascending: false });
 
     const taskList = tasks?.map(t => 
-      `${t.completed ? '✅' : '⬜'} ${t.text}${t.due_date ? ` (${t.due_date})` : ''}`
+      `${t.completed ? '✅' : '⬜'} ${escapeHtml(t.text)}${t.due_date ? ` (${t.due_date})` : ''}`
     ).join('\n') || 'Список задач пуст';
 
     let reply = "";
@@ -89,46 +141,56 @@ serve(async (req: Request) => {
 
     // Handle commands
     if (command === "/start") {
-      reply = `👋 Привет, ${username}!\n\nЯ ZenTask бот — помогу управлять задачами.\n\n📝 Команды:\n/tasks — показать задачи\n/add <задача> — добавить задачу\n/done <номер> — отметить выполненной\n/delete <номер> — удалить задачу\n\nИли просто напиши мне, и я помогу с планированием! 🚀`;
+      reply = `👋 Привет, ${escapeHtml(username)}!\n\nЯ ZenTask бот — помогу управлять задачами.\n\n📝 Команды:\n/tasks — показать задачи\n/add &lt;задача&gt; — добавить задачу\n/done &lt;номер&gt; — отметить выполненной\n/delete &lt;номер&gt; — удалить задачу\n\nИли просто напиши мне, и я помогу с планированием! 🚀`;
     } else if (command === "/tasks") {
       if (!tasks || tasks.length === 0) {
         reply = "📋 У тебя пока нет задач.\n\nДобавь первую командой:\n/add Название задачи";
       } else {
         reply = `📋 Твои задачи:\n\n${tasks.map((t, i) => 
-          `${i + 1}. ${t.completed ? '✅' : '⬜'} ${t.text}${t.due_date ? ` 📅 ${t.due_date}` : ''}`
-        ).join('\n')}\n\n✏️ /done <номер> — выполнить\n🗑 /delete <номер> — удалить`;
+          `${i + 1}. ${t.completed ? '✅' : '⬜'} ${escapeHtml(t.text)}${t.due_date ? ` 📅 ${t.due_date}` : ''}`
+        ).join('\n')}\n\n✏️ /done &lt;номер&gt; — выполнить\n🗑 /delete &lt;номер&gt; — удалить`;
       }
     } else if (command.startsWith("/add ")) {
-      const taskText = text.substring(5).trim();
+      const rawTaskText = text.substring(5);
+      const taskText = sanitizeTaskText(rawTaskText);
+      
       if (taskText) {
         await supabase.from("tasks").insert({
           telegram_user_id: telegramUser.id,
           text: taskText,
         });
-        reply = `✅ Задача добавлена:\n"${taskText}"`;
+        reply = `✅ Задача добавлена:\n"${escapeHtml(taskText)}"`;
+      } else if (rawTaskText.trim().length > MAX_TASK_LENGTH) {
+        reply = `❌ Задача слишком длинная. Максимум ${MAX_TASK_LENGTH} символов.`;
       } else {
         reply = "❌ Укажи текст задачи: /add Купить молоко";
       }
     } else if (command.startsWith("/done ")) {
-      const num = parseInt(text.substring(6).trim());
-      if (tasks && num > 0 && num <= tasks.length) {
+      const numStr = text.substring(6);
+      const num = parseTaskNumber(numStr);
+      
+      if (num !== null && tasks && num <= tasks.length) {
         const task = tasks[num - 1];
         await supabase.from("tasks").update({ completed: true }).eq("id", task.id);
-        reply = `✅ Отлично! Задача выполнена:\n"${task.text}"`;
+        reply = `✅ Отлично! Задача выполнена:\n"${escapeHtml(task.text)}"`;
       } else {
-        reply = "❌ Неверный номер. Посмотри список: /tasks";
+        reply = "❌ Неверный номер. Укажи число от 1 до количества задач. Посмотри список: /tasks";
       }
     } else if (command.startsWith("/delete ")) {
-      const num = parseInt(text.substring(8).trim());
-      if (tasks && num > 0 && num <= tasks.length) {
+      const numStr = text.substring(8);
+      const num = parseTaskNumber(numStr);
+      
+      if (num !== null && tasks && num <= tasks.length) {
         const task = tasks[num - 1];
         await supabase.from("tasks").delete().eq("id", task.id);
-        reply = `🗑 Задача удалена:\n"${task.text}"`;
+        reply = `🗑 Задача удалена:\n"${escapeHtml(task.text)}"`;
       } else {
-        reply = "❌ Неверный номер. Посмотри список: /tasks";
+        reply = "❌ Неверный номер. Укажи число от 1 до количества задач. Посмотри список: /tasks";
       }
     } else {
-      // AI assistant for free-form messages
+      // AI assistant for free-form messages - truncate if too long
+      const truncatedText = text.length > 1000 ? text.substring(0, 1000) + "..." : text;
+      
       const systemPrompt = `Ты — дружелюбный ИИ-ассистент ZenTask в Telegram. Помогаешь пользователю управлять задачами.
 
 Текущие задачи пользователя:
@@ -154,20 +216,22 @@ ${taskList}
           model: "google/gemini-3-flash-preview",
           messages: [
             { role: "system", content: systemPrompt },
-            { role: "user", content: text },
+            { role: "user", content: truncatedText },
           ],
         }),
       });
 
       if (aiResponse.ok) {
         const data = await aiResponse.json();
-        reply = data.choices?.[0]?.message?.content || "Не понял, попробуй ещё раз 🤔";
+        const aiReply = data.choices?.[0]?.message?.content || "Не понял, попробуй ещё раз 🤔";
+        // Escape AI response to prevent any HTML injection
+        reply = escapeHtml(aiReply);
       } else {
         reply = "Упс, что-то пошло не так. Попробуй позже! 😅";
       }
     }
 
-    // Send reply to Telegram
+    // Send reply to Telegram using MarkdownV2 for safer output
     await fetch(`https://api.telegram.org/bot${TELEGRAM_BOT_TOKEN}/sendMessage`, {
       method: "POST",
       headers: { "Content-Type": "application/json" },
